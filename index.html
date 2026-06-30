@@ -1,0 +1,607 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>协奏工坊 - 节拍器</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background: #1a1a2e;
+            color: #eee;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 40px 20px;
+        }
+
+        h1 {
+            font-size: 1.8rem;
+            margin-bottom: 8px;
+            color: #e94560;
+            letter-spacing: 2px;
+        }
+
+        .subtitle {
+            font-size: 0.9rem;
+            color: #888;
+            margin-bottom: 40px;
+        }
+
+        .metronome-card {
+            background: #16213e;
+            border-radius: 20px;
+            padding: 40px 30px;
+            width: 100%;
+            max-width: 420px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .visualizer {
+            height: 120px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 30px;
+            position: relative;
+        }
+
+        .pendulum-track {
+            width: 200px;
+            height: 4px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 2px;
+            position: relative;
+        }
+
+        .pendulum-ball {
+            width: 24px;
+            height: 24px;
+            background: #e94560;
+            border-radius: 50%;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            box-shadow: 0 0 20px rgba(233, 69, 96, 0.6);
+            transition: none;
+        }
+
+        .pendulum-ball.accent {
+            background: #ffd700;
+            box-shadow: 0 0 30px rgba(255, 215, 0, 0.8);
+        }
+
+        .beat-dots {
+            display: flex;
+            justify-content: center;
+            gap: 12px;
+            margin-bottom: 30px;
+        }
+
+        .beat-dot {
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.15);
+            transition: all 0.1s ease;
+        }
+
+        .beat-dot.active {
+            background: #e94560;
+            transform: scale(1.3);
+            box-shadow: 0 0 12px rgba(233, 69, 96, 0.6);
+        }
+
+        .beat-dot.accent {
+            background: #ffd700;
+            box-shadow: 0 0 16px rgba(255, 215, 0, 0.8);
+        }
+
+        .bpm-display {
+            text-align: center;
+            margin-bottom: 10px;
+        }
+
+        .bpm-value {
+            font-size: 4.5rem;
+            font-weight: 700;
+            color: #fff;
+            line-height: 1;
+            font-variant-numeric: tabular-nums;
+            background: transparent;
+            border: none;
+            outline: none;
+            text-align: center;
+            width: 180px;
+            font-family: inherit;
+            -moz-appearance: textfield;
+        }
+
+        .bpm-value::-webkit-outer-spin-button,
+        .bpm-value::-webkit-inner-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+
+        .bpm-value:focus {
+            border-bottom: 3px solid #e94560;
+        }
+
+        .bpm-label {
+            font-size: 1rem;
+            color: #888;
+            margin-top: 4px;
+        }
+
+        .bpm-slider-container {
+            margin: 20px 0 30px;
+            padding: 0 10px;
+        }
+
+        .bpm-slider {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 100%;
+            height: 6px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 3px;
+            outline: none;
+        }
+
+        .bpm-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 22px;
+            height: 22px;
+            background: #e94560;
+            border-radius: 50%;
+            cursor: pointer;
+            box-shadow: 0 0 10px rgba(233, 69, 96, 0.5);
+        }
+
+        .bpm-slider::-moz-range-thumb {
+            width: 22px;
+            height: 22px;
+            background: #e94560;
+            border-radius: 50%;
+            cursor: pointer;
+            border: none;
+            box-shadow: 0 0 10px rgba(233, 69, 96, 0.5);
+        }
+
+        .bpm-buttons {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            margin-bottom: 30px;
+        }
+
+        .bpm-btn {
+            background: rgba(255, 255, 255, 0.08);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            color: #ccc;
+            padding: 8px 16px;
+            border-radius: 10px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            transition: all 0.2s;
+        }
+
+        .bpm-btn:hover {
+            background: rgba(255, 255, 255, 0.15);
+            color: #fff;
+        }
+
+        .control-row {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .control-group {
+            flex: 1;
+        }
+
+        .control-label {
+            font-size: 0.8rem;
+            color: #888;
+            margin-bottom: 8px;
+            display: block;
+        }
+
+        select {
+            width: 100%;
+            padding: 12px 14px;
+            background: rgba(255, 255, 255, 0.06);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            border-radius: 10px;
+            color: #eee;
+            font-size: 0.95rem;
+            cursor: pointer;
+            outline: none;
+        }
+
+        select option {
+            background: #1a1a2e;
+            color: #eee;
+        }
+
+        .volume-control {
+            margin-bottom: 30px;
+        }
+
+        .volume-slider {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 100%;
+            height: 4px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 2px;
+            outline: none;
+        }
+
+        .volume-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 16px;
+            height: 16px;
+            background: #888;
+            border-radius: 50%;
+            cursor: pointer;
+        }
+
+        .play-btn {
+            width: 100%;
+            padding: 16px;
+            background: #e94560;
+            border: none;
+            border-radius: 14px;
+            color: #fff;
+            font-size: 1.1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            letter-spacing: 1px;
+        }
+
+        .play-btn:hover {
+            background: #ff6b81;
+            transform: translateY(-1px);
+        }
+
+        .play-btn.playing {
+            background: #2ecc71;
+        }
+
+        .tap-tempo {
+            text-align: center;
+            margin-top: 20px;
+        }
+
+        .tap-btn {
+            background: transparent;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            color: #888;
+            padding: 10px 24px;
+            border-radius: 10px;
+            cursor: pointer;
+            font-size: 0.85rem;
+            transition: all 0.2s;
+        }
+
+        .tap-btn:hover {
+            border-color: #e94560;
+            color: #e94560;
+        }
+
+        .tap-btn:active {
+            transform: scale(0.95);
+        }
+
+        @media (max-width: 480px) {
+            .metronome-card {
+                padding: 30px 20px;
+            }
+            .bpm-value {
+                font-size: 3.5rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <h1>协奏工坊</h1>
+    <p class="subtitle">智能节拍器</p>
+
+    <div class="metronome-card">
+        <div class="visualizer">
+            <div class="pendulum-track">
+                <div class="pendulum-ball" id="pendulum"></div>
+            </div>
+        </div>
+
+        <div class="beat-dots" id="beatDots"></div>
+
+        <div class="bpm-display">
+            <input type="number" class="bpm-value" id="bpmDisplay" min="20" max="280" value="120">
+            <div class="bpm-label">BPM</div>
+        </div>
+
+        <div class="bpm-slider-container">
+            <input type="range" class="bpm-slider" id="bpmSlider" min="20" max="280" value="120">
+        </div>
+
+        <div class="bpm-buttons">
+            <button class="bpm-btn" onclick="adjustBpm(-5)">-5</button>
+            <button class="bpm-btn" onclick="adjustBpm(-1)">-1</button>
+            <button class="bpm-btn" onclick="adjustBpm(1)">+1</button>
+            <button class="bpm-btn" onclick="adjustBpm(5)">+5</button>
+        </div>
+
+        <div class="control-row">
+            <div class="control-group">
+                <label class="control-label">拍号</label>
+                <select id="timeSignature">
+                    <option value="2">2/4</option>
+                    <option value="3">3/4</option>
+                    <option value="4" selected>4/4</option>
+                    <option value="6">6/8</option>
+                </select>
+            </div>
+            <div class="control-group">
+                <label class="control-label">音色</label>
+                <select id="soundType">
+                    <option value="click">电子点击</option>
+                    <option value="wood">木鱼</option>
+                    <option value="beep">蜂鸣</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="volume-control">
+            <label class="control-label">音量</label>
+            <input type="range" class="volume-slider" id="volumeSlider" min="0" max="100" value="70">
+        </div>
+
+        <button class="play-btn" id="playBtn" onclick="togglePlay()">开始</button>
+
+        <div class="tap-tempo">
+            <button class="tap-btn" id="tapBtn" onclick="tapTempo()">点击测速 (Tap Tempo)</button>
+        </div>
+    </div>
+
+    <script>
+        // ========== 状态 ==========
+        let bpm = 120;
+        let isPlaying = false;
+        let currentBeat = 0;
+        let beatsPerMeasure = 4;
+        let volume = 0.7;
+        let soundType = 'click';
+        let nextNoteTime = 0;
+        let timerID = null;
+        let audioCtx = null;
+
+        // Tap Tempo
+        let tapTimes = [];
+
+        // ========== DOM 元素 ==========
+        const bpmSlider = document.getElementById('bpmSlider');
+        const bpmDisplay = document.getElementById('bpmDisplay');
+        const playBtn = document.getElementById('playBtn');
+        const beatDotsContainer = document.getElementById('beatDots');
+        const pendulum = document.getElementById('pendulum');
+        const timeSignatureSelect = document.getElementById('timeSignature');
+        const soundTypeSelect = document.getElementById('soundType');
+        const volumeSlider = document.getElementById('volumeSlider');
+
+        // ========== 初始化拍号显示 ==========
+        function updateBeatDots() {
+            beatDotsContainer.innerHTML = '';
+            for (let i = 0; i < beatsPerMeasure; i++) {
+                const dot = document.createElement('div');
+                dot.className = 'beat-dot';
+                dot.dataset.beat = i;
+                beatDotsContainer.appendChild(dot);
+            }
+        }
+        updateBeatDots();
+
+        // ========== Web Audio API ==========
+        function initAudio() {
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            }
+            if (audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
+        }
+
+        function playClick(time, isAccent) {
+            if (!audioCtx) return;
+
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            const filter = audioCtx.createBiquadFilter();
+
+            osc.connect(filter);
+            filter.connect(gain);
+            gain.connect(audioCtx.destination);
+
+            const vol = isAccent ? volume : volume * 0.6;
+            gain.gain.setValueAtTime(vol, time);
+            gain.gain.exponentialRampToValueAtTime(0.001, time + 0.1);
+
+            switch (soundType) {
+                case 'click':
+                    osc.type = 'square';
+                    osc.frequency.setValueAtTime(isAccent ? 1200 : 800, time);
+                    filter.type = 'lowpass';
+                    filter.frequency.setValueAtTime(3000, time);
+                    break;
+                case 'wood':
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(isAccent ? 900 : 600, time);
+                    filter.type = 'bandpass';
+                    filter.frequency.setValueAtTime(1500, time);
+                    break;
+                case 'beep':
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(isAccent ? 1000 : 600, time);
+                    filter.type = 'lowpass';
+                    filter.frequency.setValueAtTime(5000, time);
+                    break;
+            }
+
+            osc.start(time);
+            osc.stop(time + 0.1);
+        }
+
+        // ========== 调度器 ==========
+        function schedule() {
+            const secondsPerBeat = 60.0 / bpm;
+            const lookahead = 0.1;
+            const scheduleAheadTime = 0.1;
+
+            while (nextNoteTime < audioCtx.currentTime + scheduleAheadTime) {
+                const isAccent = currentBeat === 0;
+                playClick(nextNoteTime, isAccent);
+                drawBeat(nextNoteTime, currentBeat, isAccent);
+
+                nextNoteTime += secondsPerBeat;
+                currentBeat = (currentBeat + 1) % beatsPerMeasure;
+            }
+        }
+
+        function drawBeat(time, beat, isAccent) {
+            const delay = Math.max(0, (time - audioCtx.currentTime) * 1000);
+            setTimeout(() => {
+                // 更新圆点
+                document.querySelectorAll('.beat-dot').forEach((dot, i) => {
+                    dot.classList.remove('active', 'accent');
+                    if (i === beat) {
+                        dot.classList.add('active');
+                        if (isAccent) dot.classList.add('accent');
+                    }
+                });
+
+                // 更新摆锤位置
+                const progress = beat / (beatsPerMeasure - 1 || 1);
+                const angle = (progress - 0.5) * 2;
+                const x = angle * 90;
+                pendulum.style.transform = `translate(calc(-50% + ${x}px), -50%)`;
+                pendulum.classList.toggle('accent', isAccent);
+            }, delay);
+        }
+
+        function schedulerLoop() {
+            if (!isPlaying) return;
+            schedule();
+            timerID = setTimeout(schedulerLoop, 25);
+        }
+
+        // ========== 播放控制 ==========
+        function togglePlay() {
+            initAudio();
+            isPlaying = !isPlaying;
+
+            if (isPlaying) {
+                currentBeat = 0;
+                nextNoteTime = audioCtx.currentTime + 0.05;
+                schedulerLoop();
+                playBtn.textContent = '停止';
+                playBtn.classList.add('playing');
+            } else {
+                clearTimeout(timerID);
+                playBtn.textContent = '开始';
+                playBtn.classList.remove('playing');
+                document.querySelectorAll('.beat-dot').forEach(d => d.classList.remove('active', 'accent'));
+                pendulum.style.transform = 'translate(-50%, -50%)';
+                pendulum.classList.remove('accent');
+            }
+        }
+
+        // ========== BPM 控制 ==========
+        function updateBpm(value) {
+            bpm = Math.max(20, Math.min(280, parseInt(value) || 120));
+            bpmSlider.value = bpm;
+            bpmDisplay.value = bpm;
+        }
+
+        function adjustBpm(delta) {
+            updateBpm(bpm + delta);
+        }
+
+        bpmSlider.addEventListener('input', (e) => updateBpm(e.target.value));
+
+        bpmDisplay.addEventListener('change', (e) => {
+            let val = parseInt(e.target.value);
+            if (isNaN(val) || val < 20) val = 20;
+            if (val > 280) val = 280;
+            updateBpm(val);
+        });
+
+        bpmDisplay.addEventListener('blur', (e) => {
+            let val = parseInt(e.target.value);
+            if (isNaN(val) || val < 20) val = 20;
+            if (val > 280) val = 280;
+            updateBpm(val);
+        });
+
+        // ========== 拍号 ==========
+        timeSignatureSelect.addEventListener('change', (e) => {
+            beatsPerMeasure = parseInt(e.target.value);
+            currentBeat = 0;
+            updateBeatDots();
+        });
+
+        // ========== 音色 ==========
+        soundTypeSelect.addEventListener('change', (e) => {
+            soundType = e.target.value;
+        });
+
+        // ========== 音量 ==========
+        volumeSlider.addEventListener('input', (e) => {
+            volume = parseInt(e.target.value) / 100;
+        });
+
+        // ========== Tap Tempo ==========
+        function tapTempo() {
+            const now = Date.now();
+            tapTimes.push(now);
+
+            // 保留最近 8 次点击
+            if (tapTimes.length > 8) tapTimes.shift();
+
+            // 移除超过 2 秒的旧记录
+            tapTimes = tapTimes.filter(t => now - t < 2000);
+
+            if (tapTimes.length >= 2) {
+                const intervals = [];
+                for (let i = 1; i < tapTimes.length; i++) {
+                    intervals.push(tapTimes[i] - tapTimes[i - 1]);
+                }
+                const avgInterval = intervals.reduce((a, b) => a + b, 0) / intervals.length;
+                const newBpm = Math.round(60000 / avgInterval);
+                updateBpm(newBpm);
+            }
+        }
+
+        // 键盘快捷键
+        document.addEventListener('keydown', (e) => {
+            if (e.code === 'Space') {
+                e.preventDefault();
+                togglePlay();
+            }
+        });
+    </script>
+</body>
+</html>
