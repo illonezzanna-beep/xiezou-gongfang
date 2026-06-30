@@ -533,7 +533,7 @@
         function updateBpm(value) {
             bpm = Math.max(20, Math.min(280, parseInt(value) || 120));
             bpmSlider.value = bpm;
-            bpmDisplay.textContent = bpm;
+            bpmDisplay.value = bpm;
         }
 
         function adjustBpm(delta) {
