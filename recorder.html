@@ -1,0 +1,571 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>协奏工坊 - 录音识谱</title>
+    <script src="https://unpkg.com/vexflow@4.2.2/build/cjs/vexflow.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background: #1a1a2e;
+            color: #eee;
+            min-height: 100vh;
+            padding: 30px 20px;
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .header h1 { font-size: 1.6rem; color: #e94560; margin-bottom: 6px; }
+        .header p { color: #888; font-size: 0.85rem; }
+        .header a { color: #e94560; text-decoration: none; font-size: 0.85rem; }
+
+        .card {
+            background: #16213e;
+            border-radius: 16px;
+            padding: 24px;
+            max-width: 720px;
+            margin: 0 auto 20px;
+            border: 1px solid rgba(255,255,255,0.05);
+        }
+
+        .section-title {
+            font-size: 0.9rem;
+            color: #aaa;
+            margin-bottom: 14px;
+            letter-spacing: 1px;
+        }
+
+        /* 录音控制 */
+        .recorder-controls {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 16px;
+        }
+        #waveCanvas {
+            width: 100%;
+            height: 100px;
+            background: rgba(0,0,0,0.3);
+            border-radius: 10px;
+        }
+        .rec-btn {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            border: 4px solid #e94560;
+            background: transparent;
+            cursor: pointer;
+            position: relative;
+            transition: all 0.2s;
+        }
+        .rec-btn::after {
+            content: '';
+            position: absolute;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            width: 28px; height: 28px;
+            background: #e94560;
+            border-radius: 50%;
+            transition: all 0.2s;
+        }
+        .rec-btn.recording::after {
+            width: 24px; height: 24px;
+            border-radius: 4px;
+            background: #ff3333;
+        }
+        .rec-btn.recording {
+            border-color: #ff3333;
+            animation: pulse 1.2s infinite;
+        }
+        @keyframes pulse {
+            0% { box-shadow: 0 0 0 0 rgba(255,51,51,0.4); }
+            70% { box-shadow: 0 0 0 16px rgba(255,51,51,0); }
+            100% { box-shadow: 0 0 0 0 rgba(255,51,51,0); }
+        }
+        .rec-status {
+            font-size: 0.85rem;
+            color: #888;
+        }
+
+        /* 音符列表 */
+        .notes-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            min-height: 40px;
+        }
+        .note-chip {
+            background: rgba(233,69,96,0.15);
+            border: 1px solid rgba(233,69,96,0.3);
+            color: #e94560;
+            padding: 6px 14px;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            font-weight: 500;
+        }
+        .note-chip.rest {
+            background: rgba(255,255,255,0.06);
+            border-color: rgba(255,255,255,0.12);
+            color: #888;
+        }
+
+        /* 谱面选择 */
+        .sheet-actions {
+            display: flex;
+            gap: 12px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+        .sheet-btn {
+            padding: 12px 28px;
+            border-radius: 12px;
+            border: 1px solid rgba(255,255,255,0.12);
+            background: rgba(255,255,255,0.06);
+            color: #ddd;
+            cursor: pointer;
+            font-size: 0.95rem;
+            transition: all 0.2s;
+        }
+        .sheet-btn:hover {
+            border-color: #e94560;
+            color: #e94560;
+        }
+        .sheet-btn:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
+
+        /* 谱面显示区 */
+        .sheet-display {
+            min-height: 180px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        #staffOutput, #jianpuCanvas {
+            width: 100%;
+        }
+        #jianpuCanvas {
+            display: block;
+            margin: 0 auto;
+        }
+        .empty-hint {
+            color: #666;
+            font-size: 0.9rem;
+        }
+
+        .params-row {
+            display: flex;
+            gap: 16px;
+            flex-wrap: wrap;
+            margin-bottom: 14px;
+        }
+        .params-row label {
+            font-size: 0.8rem;
+            color: #888;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .params-row select, .params-row input {
+            background: rgba(255,255,255,0.06);
+            border: 1px solid rgba(255,255,255,0.12);
+            color: #eee;
+            padding: 6px 10px;
+            border-radius: 6px;
+            outline: none;
+        }
+
+        @media (max-width: 520px) {
+            .card { padding: 18px 14px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>协奏工坊</h1>
+        <p>录音识谱 · 弹一段，自动生成乐谱</p>
+        <a href="index.html">← 返回节拍器</a>
+    </div>
+
+    <div class="card">
+        <div class="section-title">🎙 录音</div>
+        <div class="params-row">
+            <label>
+                调性
+                <select id="keySelect">
+                    <option value="C">C</option>
+                    <option value="G">G</option>
+                    <option value="D">D</option>
+                    <option value="F">F</option>
+                </select>
+            </label>
+            <label>
+                最低音过滤 (Hz)
+                <input type="number" id="minFreq" value="80" style="width:70px">
+            </label>
+        </div>
+        <div class="recorder-controls">
+            <canvas id="waveCanvas"></canvas>
+            <button class="rec-btn" id="recBtn" onclick="toggleRecord()"></button>
+            <div class="rec-status" id="recStatus">点击圆圈开始录音</div>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="section-title">🎵 识别结果</div>
+        <div class="notes-list" id="notesList">
+            <span style="color:#666;font-size:0.85rem">录音后此处显示识别到的音符</span>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="section-title">📜 生成谱面</div>
+        <div class="sheet-actions">
+            <button class="sheet-btn" id="btnStaff" onclick="renderStaff()" disabled>生成五线谱</button>
+            <button class="sheet-btn" id="btnJianpu" onclick="renderJianpu()" disabled>生成简谱</button>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="section-title">🎼 谱面预览</div>
+        <div class="sheet-display" id="sheetDisplay">
+            <div class="empty-hint">选择上方按钮生成谱面</div>
+        </div>
+    </div>
+
+    <script>
+        // ========== 全局状态 ==========
+        let audioCtx = null;
+        let analyser = null;
+        let micStream = null;
+        let isRecording = false;
+        let rafId = null;
+        let detectedNotes = []; // {name, midi, freq, time}
+        let noteBuffer = [];    // 原始检测缓冲
+        let lastNoteTime = 0;
+
+        const waveCanvas = document.getElementById('waveCanvas');
+        const waveCtx = waveCanvas.getContext('2d');
+        const recBtn = document.getElementById('recBtn');
+        const recStatus = document.getElementById('recStatus');
+        const notesList = document.getElementById('notesList');
+        const sheetDisplay = document.getElementById('sheetDisplay');
+        const btnStaff = document.getElementById('btnStaff');
+        const btnJianpu = document.getElementById('btnJianpu');
+
+        // 适配 canvas 分辨率
+        function resizeCanvas() {
+            const dpr = window.devicePixelRatio || 1;
+            const rect = waveCanvas.getBoundingClientRect();
+            waveCanvas.width = rect.width * dpr;
+            waveCanvas.height = rect.height * dpr;
+            waveCtx.scale(dpr, dpr);
+        }
+        resizeCanvas();
+        window.addEventListener('resize', resizeCanvas);
+
+        // ========== 自相关音高检测 ==========
+        function autoCorrelate(buf, sampleRate) {
+            let SIZE = buf.length;
+            let rms = 0;
+            for (let i = 0; i < SIZE; i++) rms += buf[i] * buf[i];
+            rms = Math.sqrt(rms / SIZE);
+            if (rms < 0.01) return -1; // 静音
+
+            let r1 = 0, r2 = SIZE - 1, thres = 0.2;
+            for (let i = 0; i < SIZE / 2; i++) {
+                if (Math.abs(buf[i]) < thres) { r1 = i; break; }
+            }
+            for (let i = 1; i < SIZE / 2; i++) {
+                if (Math.abs(buf[SIZE - i]) < thres) { r2 = SIZE - i; break; }
+            }
+            buf = buf.slice(r1, r2);
+            SIZE = buf.length;
+
+            let c = new Array(SIZE).fill(0);
+            for (let i = 0; i < SIZE; i++) {
+                for (let j = 0; j < SIZE - i; j++) {
+                    c[i] += buf[j] * buf[j + i];
+                }
+            }
+
+            let d = 0;
+            while (c[d] > c[d + 1]) d++;
+            let maxval = -1, maxpos = -1;
+            for (let i = d; i < SIZE; i++) {
+                if (c[i] > maxval) { maxval = c[i]; maxpos = i; }
+            }
+            let T0 = maxpos;
+
+            // 抛物线插值提高精度
+            let x1 = c[T0 - 1], x2 = c[T0], x3 = c[T0 + 1];
+            let a = (x1 + x3 - 2 * x2) / 2;
+            let b = (x3 - x1) / 2;
+            if (a) T0 = T0 - b / (2 * a);
+
+            return sampleRate / T0;
+        }
+
+        function freqToNote(freq) {
+            const noteStrings = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+            const midi = Math.round(69 + 12 * Math.log2(freq / 440));
+            const noteIndex = ((midi % 12) + 12) % 12;
+            const octave = Math.floor(midi / 12) - 1;
+            return {
+                name: noteStrings[noteIndex] + octave,
+                midi: midi,
+                noteIndex: noteIndex,
+                octave: octave,
+                freq: freq
+            };
+        }
+
+        // ========== 录音控制 ==========
+        async function toggleRecord() {
+            if (isRecording) {
+                stopRecord();
+                return;
+            }
+            try {
+                micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                analyser = audioCtx.createAnalyser();
+                analyser.fftSize = 2048;
+                const source = audioCtx.createMediaStreamSource(micStream);
+                source.connect(analyser);
+
+                isRecording = true;
+                recBtn.classList.add('recording');
+                recStatus.textContent = '正在录音... 再次点击停止';
+                noteBuffer = [];
+                detectedNotes = [];
+                lastNoteTime = audioCtx.currentTime;
+
+                updateButtons();
+                drawWave();
+                detectPitchLoop();
+            } catch (err) {
+                alert('无法访问麦克风，请检查权限设置：' + err.message);
+            }
+        }
+
+        function stopRecord() {
+            isRecording = false;
+            recBtn.classList.remove('recording');
+            recStatus.textContent = '录音已结束，下方可生成谱面';
+            if (rafId) cancelAnimationFrame(rafId);
+            if (micStream) micStream.getTracks().forEach(t => t.stop());
+
+            // 量化音符：合并连续相同音，过滤休息
+            quantizeNotes();
+            renderNoteChips();
+            updateButtons();
+        }
+
+        function updateButtons() {
+            const hasNotes = detectedNotes.length > 0;
+            btnStaff.disabled = !hasNotes;
+            btnJianpu.disabled = !hasNotes;
+        }
+
+        // ========== 波形可视化 ==========
+        function drawWave() {
+            if (!isRecording) return;
+            const bufferLength = analyser.fftSize;
+            const dataArray = new Uint8Array(bufferLength);
+            analyser.getByteTimeDomainData(dataArray);
+
+            const w = waveCanvas.getBoundingClientRect().width;
+            const h = waveCanvas.getBoundingClientRect().height;
+            waveCtx.clearRect(0, 0, w, h);
+            waveCtx.lineWidth = 2;
+            waveCtx.strokeStyle = '#e94560';
+            waveCtx.beginPath();
+
+            const sliceWidth = w / bufferLength;
+            let x = 0;
+            for (let i = 0; i < bufferLength; i++) {
+                const v = dataArray[i] / 128.0;
+                const y = (v * h) / 2;
+                if (i === 0) waveCtx.moveTo(x, y);
+                else waveCtx.lineTo(x, y);
+                x += sliceWidth;
+            }
+            waveCtx.stroke();
+            rafId = requestAnimationFrame(drawWave);
+        }
+
+        // ========== 实时音高检测 ==========
+        function detectPitchLoop() {
+            if (!isRecording) return;
+            const buf = new Float32Array(analyser.fftSize);
+            analyser.getFloatTimeDomainData(buf);
+            const freq = autoCorrelate(buf, audioCtx.sampleRate);
+            const minFreqVal = parseFloat(document.getElementById('minFreq').value) || 80;
+
+            if (freq > 0 && freq >= minFreqVal && freq < 4000) {
+                const note = freqToNote(freq);
+                const now = audioCtx.currentTime;
+                noteBuffer.push({ ...note, time: now });
+            }
+
+            setTimeout(detectPitchLoop, 60); // 约 16fps
+        }
+
+        // ========== 音符量化 ==========
+        function quantizeNotes() {
+            if (noteBuffer.length === 0) return;
+            // 按 150ms 窗口合并相同音
+            const thresholdMs = 150;
+            let groups = [];
+            let current = [noteBuffer[0]];
+
+            for (let i = 1; i < noteBuffer.length; i++) {
+                const prev = current[current.length - 1];
+                const curr = noteBuffer[i];
+                const sameNote = curr.midi === prev.midi;
+                const closeTime = (curr.time - prev.time) * 1000 < thresholdMs;
+                if (sameNote && closeTime) {
+                    current.push(curr);
+                } else {
+                    groups.push(current);
+                    current = [curr];
+                }
+            }
+            groups.push(current);
+
+            detectedNotes = groups.map(g => ({
+                name: g[0].name,
+                midi: g[0].midi,
+                noteIndex: g[0].noteIndex,
+                octave: g[0].octave,
+                duration: Math.round(((g[g.length - 1].time - g[0].time) * 1000) / 10) * 10 // 取整
+            }));
+        }
+
+        function renderNoteChips() {
+            if (detectedNotes.length === 0) {
+                notesList.innerHTML = '<span style="color:#666;font-size:0.85rem">未识别到音符，请靠近麦克风演奏</span>';
+                return;
+            }
+            notesList.innerHTML = detectedNotes.map((n, i) =>
+                `<span class="note-chip">${n.name}</span>`
+            ).join('');
+        }
+
+        // ========== 五线谱渲染 (VexFlow) ==========
+        function renderStaff() {
+            sheetDisplay.innerHTML = '<div id="staffOutput"></div>';
+            const { Renderer, Stave, StaveNote, Voice, Formatter } = Vex.Flow;
+
+            const div = document.getElementById('staffOutput');
+            const renderer = new Renderer(div, Renderer.Backends.SVG);
+            renderer.resize(680, 200);
+            const context = renderer.getContext();
+
+            const stave = new Stave(10, 20, 650);
+            const keySig = document.getElementById('keySelect').value;
+            stave.addClef('treble').addKeySignature(keySig).addTimeSignature('4/4');
+            stave.setContext(context).draw();
+
+            const vexNotes = detectedNotes.slice(0, 16).map(n => {
+                const keyMap = ['c', 'c#', 'd', 'd#', 'e', 'f', 'f#', 'g', 'g#', 'a', 'a#', 'b'];
+                const k = keyMap[n.noteIndex] + '/' + n.octave;
+                return new StaveNote({ clef: 'treble', keys: [k], duration: 'q' });
+            });
+
+            if (vexNotes.length === 0) return;
+
+            const voice = new Voice({ num_beats: vexNotes.length, beat_value: 4 });
+            voice.addTickables(vexNotes);
+            new Formatter().joinVoices([voice]).format([voice], 600);
+            voice.draw(context, stave);
+        }
+
+        // ========== 简谱渲染 (Canvas) ==========
+        function renderJianpu() {
+            sheetDisplay.innerHTML = '<canvas id="jianpuCanvas"></canvas>';
+            const canvas = document.getElementById('jianpuCanvas');
+            const ctx = canvas.getContext('2d');
+            const dpr = window.devicePixelRatio || 1;
+
+            const notes = detectedNotes.slice(0, 24);
+            const colCount = 8;
+            const rowCount = Math.ceil(notes.length / colCount);
+            const cellW = 70;
+            const cellH = 90;
+            const padX = 30;
+            const padY = 40;
+            const w = padX * 2 + colCount * cellW;
+            const h = padY * 2 + rowCount * cellH;
+
+            canvas.style.width = w + 'px';
+            canvas.style.height = h + 'px';
+            canvas.width = w * dpr;
+            canvas.height = h * dpr;
+            ctx.scale(dpr, dpr);
+
+            ctx.fillStyle = '#eee';
+            ctx.font = 'bold 28px -apple-system, BlinkMacSystemFont, sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+
+            // 调号
+            ctx.font = '14px sans-serif';
+            ctx.fillStyle = '#888';
+            ctx.textAlign = 'left';
+            const keySig = document.getElementById('keySelect').value;
+            ctx.fillText('1=' + keySig, 10, 20);
+            ctx.textAlign = 'center';
+
+            const jianpuMap = [1, 1, 2, 2, 3, 4, 4, 5, 5, 6, 6, 7]; // C=0 -> 1, C#=1 -> #1, D=2 -> 2...
+
+            notes.forEach((n, idx) => {
+                const col = idx % colCount;
+                const row = Math.floor(idx / colCount);
+                const x = padX + col * cellW + cellW / 2;
+                const y = padY + row * cellH + cellH / 2;
+
+                const baseNum = jianpuMap[n.noteIndex] || 1;
+                const isSharp = [1, 3, 6, 8, 10].includes(n.noteIndex);
+                const displayText = isSharp ? ('#' + baseNum) : ('' + baseNum);
+
+                // 画数字
+                ctx.font = 'bold 28px sans-serif';
+                ctx.fillStyle = '#eee';
+                ctx.fillText(displayText, x, y);
+
+                // 高音点（中央C以上，midi >= 60）
+                if (n.midi >= 60) {
+                    ctx.beginPath();
+                    ctx.arc(x, y - 28, 3, 0, Math.PI * 2);
+                    ctx.fillStyle = '#eee';
+                    ctx.fill();
+                }
+                // 低音点（中央C以下，midi < 48）
+                if (n.midi < 48) {
+                    ctx.beginPath();
+                    ctx.arc(x, y + 28, 3, 0, Math.PI * 2);
+                    ctx.fillStyle = '#eee';
+                    ctx.fill();
+                }
+
+                // 小节线
+                if ((idx + 1) % 4 === 0 && idx !== notes.length - 1) {
+                    ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+                    ctx.lineWidth = 1;
+                    ctx.beginPath();
+                    const lineX = padX + (col + 1) * cellW;
+                    ctx.moveTo(lineX, padY + row * cellH + 10);
+                    ctx.lineTo(lineX, padY + row * cellH + cellH - 10);
+                    ctx.stroke();
+                }
+            });
+        }
+    </script>
+</body>
+</html>
